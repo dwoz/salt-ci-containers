@@ -28,8 +28,28 @@ RUN <<EOF
     cp /bin/true /sbin/ldconfig
   fi
 
-  apt update -y
-  apt install -y tar wget xz-utils vim-nox apt-utils
+  # Debian 11 (bullseye) reached EOL on 2026-08-31. The live
+  # debian-security repository InRelease signature is no longer refreshed
+  # and packages have been purged from deb.debian.org, so `apt update` /
+  # install fail with either "Release file ... is expired" or 404s on
+  # package fetch. Pin sources to a snapshot.debian.org timestamp taken
+  # a week before EOL -- this is the same set of snapshot URLs the base
+  # debian:11 image already references (commented out) in its default
+  # sources.list -- and install a persistent apt config that disables
+  # the Valid-Until freshness check (so subsequent apt invocations from
+  # Salt states also succeed). Scoped only to this dockerfile --
+  # supported releases (Debian 12/13) must keep Valid-Until enforced as
+  # a real security signal. GPG signature verification is unaffected.
+  cat > /etc/apt/sources.list <<'SOURCES'
+deb http://snapshot.debian.org/archive/debian/20260824T000000Z bullseye main
+deb http://snapshot.debian.org/archive/debian-security/20260824T000000Z bullseye-security main
+deb http://snapshot.debian.org/archive/debian/20260824T000000Z bullseye-updates main
+SOURCES
+  cat > /etc/apt/apt.conf.d/99-bullseye-eol <<'APTCONF'
+Acquire::Check-Valid-Until "false";
+APTCONF
+  apt-get update -y
+  apt-get install -y tar wget xz-utils vim-nox apt-utils
 
   wget https://packages.broadcom.com/artifactory/saltproject-generic/onedir/$SALT_VERSION/salt-$SALT_VERSION-onedir-linux-$ARCH.tar.xz
   tar xf salt-$SALT_VERSION-onedir-linux-$ARCH.tar.xz
