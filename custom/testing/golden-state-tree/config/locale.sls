@@ -118,20 +118,31 @@ photon_locale:
 us_locale:
   locale.present:
     - name: en_US.UTF-8
+    {%- if grains.os_family == 'Debian' %}
     - require:
-      {%- if grains.os_family == 'Debian' %}
       - pkg: deb_locale
-      {%- elif grains['os_family'] == 'RedHat' and grains['osmajorrelease']|int != 7 and grains['os'] != 'VMware Photon OS' %}
+    {%- elif grains['os_family'] == 'RedHat' and grains['osmajorrelease']|int != 7 and grains['os'] != 'VMware Photon OS' %}
+    - require:
       - pkg: redhat_locale
-      {%- elif grains['os'] == 'VMware Photon OS' %}
+    {%- elif grains['os'] == 'VMware Photon OS' %}
+    - require:
       - pkg: photon_locale
-      {%- elif on_suse %}
+    {%- elif on_suse %}
+    - require:
       - pkg: suse_local
-      {%- else %}
-      []
-      {%- endif %}
+    {%- endif %}
 
-  {%- if grains['os_family'] not in ('FreeBSD',) %}
+  {%- if on_arch %}
+{#- Salt's locale.system state errors "Arch Linux" is unsupported! (no
+   dedicated provider registered) - write /etc/locale.conf directly,
+   the same file systemd-based distros' provider would write anyway. #}
+default_locale:
+  file.managed:
+    - name: /etc/locale.conf
+    - contents: 'LANG=en_US.UTF-8'
+    - require:
+      - locale: us_locale
+  {%- elif grains['os_family'] not in ('FreeBSD',) %}
 default_locale:
   locale.system:
     - name: en_US.UTF-8

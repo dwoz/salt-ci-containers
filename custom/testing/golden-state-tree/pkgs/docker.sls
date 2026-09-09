@@ -86,7 +86,7 @@ install-docker:
     {%- endif %}
   {%- endif %}
 
-  {%- if grains['os_family'] != 'Debian' and grains['os'] != 'Rocky' and grains['os'] !=  'SUSE' %}
+  {%- if grains['os_family'] not in ('Debian', 'Arch') and grains['os'] != 'Rocky' and grains['os'] !=  'SUSE' %}
     {%- if on_docker == False %}
 reload-systemd-units:
   module.run:
@@ -102,11 +102,12 @@ enable-docker-service:
       - reload-systemd-units
     {%- endif %}
   {%- endif %}
-  {%- if grains['os'] == 'Rocky' %}
+  {%- if grains['os'] == 'Rocky' or grains['os_family'] == 'Arch' %}
 enable-docker-service:
   file.symlink:
     - name: /etc/systemd/system/multi-user.target.wants/docker.service
     - target: /usr/lib/systemd/system/docker.service
+    - makedirs: True
   {%- endif %}
 
 {#-
@@ -126,6 +127,7 @@ fix-for-mysql:
   file.managed:
     - contents: |
         {"storage-driver": "overlay2"}
+    - makedirs: True
     - require:
       - install-docker
 
