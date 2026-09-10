@@ -65,10 +65,35 @@ vault-repo:
         fi
 
 install-vault:
-  pkg.installed:
-    - name: vault
-    - refresh: True
-    - onlyif: test -f /etc/yum.repos.d/hashicorp.repo
+  cmd.run:
+    - name: |
+        set -e
+        if [ ! -f /etc/yum.repos.d/hashicorp.repo ]; then
+          exit 0
+        fi
+        {%- if grains['os'] == 'Fedora' %}
+        PKG_MGR=dnf
+        {%- else %}
+        PKG_MGR=yum
+        {%- endif %}
+        # HashiCorp rotated their RPM package-signing key on 2026-09-09
+        # without warning (see
+        # https://github.com/hashicorp/vault/issues/32109). Some
+        # architectures are still serving vault builds signed with the
+        # outgoing key while /gpg already advertises the new one, so a
+        # freshly-imported key can still fail the package's GPG check.
+        # Retry a few times in case HashiCorp's rollout catches up
+        # mid-build, but don't fail the whole image build over an
+        # upstream signing incident we don't control - skip vault
+        # instead, same as when the repo doesn't cover a release at all.
+        for i in 1 2 3 4 5; do
+          $PKG_MGR install -y vault && exit 0
+          echo "vault install attempt $i failed, retrying..." >&2
+          $PKG_MGR clean all
+          sleep 10
+        done
+        echo "vault install kept failing (likely a HashiCorp key-rotation incident); skipping vault" >&2
+        exit 0
     - require:
       - vault-repo
 
